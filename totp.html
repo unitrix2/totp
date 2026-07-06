@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOTP Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #09090b;
+    --surface:  rgba(24, 24, 27, 0.7);
+    --border:   rgba(255, 255, 255, 0.1);
+    --accent:   #6366f1;
+    --accent-hover: #818cf8;
+    --accent-glow: rgba(99, 102, 241, 0.5);
+    --fg:       #f8fafc;
+    --fg-dim:   #94a3b8;
+    --green:    #10b981;
+    --red:      #ef4444;
+    --radius:   20px;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.1), transparent 25%);
+    color: var(--fg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+
+  /* Light mode */
+  body.light {
+    --bg:      #f1f5f9;
+    --surface: rgba(255, 255, 255, 0.8);
+    --border:  rgba(0, 0, 0, 0.1);
+    --accent:  #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-glow: rgba(79, 70, 229, 0.3);
+    --fg:      #0f172a;
+    --fg-dim:  #64748b;
+    --green:   #059669;
+  }
+
+  /* Theme toggle */
+  .theme-row {
+    position: fixed;
+    top: 24px;
+    right: 32px;
+  }
+
+  .theme-btn {
+    background: var(--surface);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 30px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .theme-btn:hover { 
+    border-color: var(--accent); 
+    box-shadow: 0 0 15px var(--accent-glow);
+    transform: translateY(-2px);
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 30px 60px -12px rgba(0,0,0,0.5), 0 0 30px var(--accent-glow);
+    border-color: rgba(255,255,255,0.2);
+  }
+  body.light .card:hover {
+    border-color: rgba(0,0,0,0.2);
+  }
+
+  /* Icon */
+  .icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 28px;
+    color: white;
+    box-shadow: 0 10px 20px var(--accent-glow);
+    transform: rotate(-5deg);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card:hover .icon {
+    transform: rotate(0deg) scale(1.05);
+  }
+
+  .title {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--fg);
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--fg-dim);
+    margin-bottom: 36px;
+  }
+
+  /* Code display */
+  .code-wrap {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 20px 20px;
+    margin-bottom: 28px;
+    position: relative;
+    transition: background 0.3s;
+  }
+  body.light .code-wrap { background: rgba(255, 255, 255, 0.5); }
+
+  .code-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--fg-dim);
+    margin-bottom: 12px;
+  }
+
+  .code {
+    font-family: 'Space Grotesk', 'Consolas', monospace;
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    color: var(--accent);
+    line-height: 1;
+    user-select: all;
+    transition: all 0.3s;
+    text-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .code.refreshing { 
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  /* Progress bar */
+  .progress-wrap {
+    margin-top: 20px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+    transition: width 1s linear, background 0.3s;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  .progress-bar.urgent { 
+    background: var(--red);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  }
+
+  /* Timer text */
+  .timer {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg-dim);
+    margin-top: 14px;
+    transition: color 0.3s;
+  }
+  .timer.urgent { color: var(--red); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* Copy button */
+  .copy-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 8px 16px var(--accent-glow);
+  }
+  .copy-btn:hover { 
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px var(--accent-glow);
+  }
+  .copy-btn:active {
+    transform: translateY(0);
+  }
+  .copy-btn.copied { 
+    background: var(--green); 
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.4);
+  }
+
+  /* Info row */
+  .info {
+    font-size: 12px;
+    color: var(--fg-dim);
+    line-height: 1.8;
+  }
+
+  .sep {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="theme-row">
+  <button class="theme-btn" onclick="toggleTheme()" id="themebtn">Light Mode</button>
+</div>
+
+<div class="card">
+  <div class="icon">&#128274;</div>
+  <div class="title">TOTP Generator</div>
+  <div class="subtitle">Time-based one-time password</div>
+
+  <div class="code-wrap">
+    <div class="code-label">Current Code</div>
+    <div class="code" id="code">------</div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="pbar"></div>
+    </div>
+    <div class="timer" id="timer">Loading...</div>
+  </div>
+
+  <button class="copy-btn" id="copybtn" onclick="copyCode()">
+    Copy Code
+  </button>
+
+  <div class="sep"></div>
+
+  <div class="info">
+    Period: 5 minutes &nbsp;|&nbsp; 6 digits &nbsp;|&nbsp; HMAC-SHA1
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// CONFIG  -  must match ShadowTool.py exactly
+// =============================================================================
+const SECRET  = 'LAPTOP';
+const PERIOD  = 300;   // seconds
+const DIGITS  = 6;
+
+// =============================================================================
+// BASE32 DECODE
+// =============================================================================
+function base32decode(s) {
+  const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  s = s.toUpperCase().replace(/=+$/, '');
+  let bits = 0, val = 0;
+  const out = [];
+  for (const c of s) {
+    const idx = alpha.indexOf(c);
+    if (idx < 0) continue;
+    val = (val << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((val >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+// =============================================================================
+// TOTP  -  RFC 6238 via Web Crypto
+// =============================================================================
+async function generateTOTP() {
+  const keyBytes = base32decode(SECRET);
+
+  // Pad secret if needed (base32 decode handles it above)
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes,
+    { name: 'HMAC', hash: 'SHA-1' },
+    false, ['sign']
+  );
+
+  // Time counter: floor(unix_seconds / period)
+  const t = Math.floor(Date.now() / 1000 / PERIOD);
+
+  // 8-byte big-endian counter
+  const msg = new ArrayBuffer(8);
+  const view = new DataView(msg);
+  view.setUint32(0, 0,    false);  // high 32 bits (always 0 in our era)
+  view.setUint32(4, t,    false);  // low  32 bits
+
+  const sig    = await crypto.subtle.sign('HMAC', cryptoKey, msg);
+  const h      = new Uint8Array(sig);
+  const offset = h[19] & 0x0f;
+  const code   = (
+    ((h[offset]     & 0x7f) << 24) |
+    ((h[offset + 1] & 0xff) << 16) |
+    ((h[offset + 2] & 0xff) <<  8) |
+     (h[offset + 3] & 0xff)
+  ) % Math.pow(10, DIGITS);
+
+  return String(code).padStart(DIGITS, '0');
+}
+
+// =============================================================================
+// UI UPDATE LOOP
+// =============================================================================
+let _lastCode = '';
+
+async function update() {
+  const now  = Math.floor(Date.now() / 1000);
+  const rem  = PERIOD - (now % PERIOD);
+  const pct  = (rem / PERIOD) * 100;
+  const urgent = rem <= 30;
+
+  // Generate code
+  const code = await generateTOTP();
+
+  // Update code display
+  const codeEl = document.getElementById('code');
+  if (code !== _lastCode) {
+    codeEl.classList.add('refreshing');
+    setTimeout(() => {
+      codeEl.textContent = code;
+      codeEl.classList.remove('refreshing');
+    }, 150);
+    _lastCode = code;
+  }
+
+  // Progress bar
+  const pbar = document.getElementById('pbar');
+  pbar.style.width = pct + '%';
+  pbar.classList.toggle('urgent', urgent);
+
+  // Timer text
+  const m   = Math.floor(rem / 60);
+  const s   = rem % 60;
+  const timerEl = document.getElementById('timer');
+  timerEl.textContent = `Refreshes in  ${m}:${String(s).padStart(2,'0')}`;
+  timerEl.classList.toggle('urgent', urgent);
+}
+
+// =============================================================================
+// COPY
+// =============================================================================
+function copyCode() {
+  const code = document.getElementById('code').textContent;
+  if (!code || code === '------') return;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copybtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy Code';
+      btn.classList.remove('copied');
+    }, 1800);
+  }).catch(() => {
+    // Fallback: select text
+    const range = document.createRange();
+    range.selectNode(document.getElementById('code'));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+}
+
+// =============================================================================
+// THEME
+// =============================================================================
+function toggleTheme() {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('themebtn').textContent = light ? 'Dark Mode' : 'Light Mode';
+}
+
+// =============================================================================
+// START
+// =============================================================================
+update();
+setInterval(update, 1000);
+</script>
+</body>
+</html>
